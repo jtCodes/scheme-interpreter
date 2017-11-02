@@ -16,7 +16,7 @@ underlying Scheme:
                                                                             
          eval => xeval                                                         
          apply => xapply                                                       
- extend-environment => xtend-environment                               
+        extend-environment => xtend-environment                               
                                                                         
 3.  The driver-loop is called s450.                                         
                                                                          
@@ -26,6 +26,6 @@ underlying Scheme:
                                                                          
     The define special form evaluates to (i.e., "returns") the           
     variable being defined.                                            
-     No prefix is printed before an output value.                         
+    No prefix is printed before an output value.                         
                                                                            
 6.  I changed "compound-procedure" to "user-defined-procedure"
