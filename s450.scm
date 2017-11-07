@@ -41,9 +41,6 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (define (xeval exp env)
-  (display exp)
-  (newline)
-  (newline)
   (let ((action (lookup-action (type-of exp))))
     (if (and (lookup-action (type-of exp))
              (pair? exp)) ;to catch ==> <special-form>; ie: ==> if
@@ -65,9 +62,7 @@
          ;copy params into a new list so original params don't get modified
          (let ((new-params (list-copy (procedure-parameters procedure))))
            (scan-params new-params arguments env) ;scan for tagged params
-           (display (list-of-values arguments env))
-           (newline)
-           (eval-sequence
+           (eval-sequence                         ;and untag it
             (procedure-body procedure)
             (xtend-environment
              new-params
@@ -80,8 +75,9 @@
 
 (define (list-of-values exps env)
   (cond ((no-operands? exps) '())
-        ((thunk? (first-operand exps))
-         (cons (first-operand exps) ;don't eval if thunk
+        ((or (thunk? (first-operand exps))
+             (to-be-ref? (first-operand exps)))
+         (cons (first-operand exps) ;don't eval if tagged
                (list-of-values (rest-operands exps) env)))
         (else
          (cons (xeval (first-operand exps) env)
@@ -166,11 +162,13 @@
 (define the-empty-stream '())
 
 ;;; Let special-form
+;;; (let ((<var1> <exp1>) (<var2> <exp2>)...(<varn> <expn>)) <body>)
+;;; = ((lambda (<var1> ...<varn>) <body>) <exp1> ...<expn>)
 
 (define (var-exp l)
     (cadr l))
 
-(define (body l)
+(define (proc-body l)
     (cddr l))
 
 (define (collect-vars ve)
@@ -185,7 +183,7 @@
 
 (define (let->lambda exp)
   (cons (cons 'lambda (cons (collect-vars (var-exp exp))
-                            (body exp)))
+                            (proc-body exp)))
         (collect-exps (var-exp exp))))
 
 ;;; Check if var already defined.
@@ -314,7 +312,7 @@
                           (env-loop env)))
   (install-special-form 'cons-stream
                         (lambda (exp env)
-                          (cons (xeval (elmt exp) env)
+                          (cons (xeval (elmt exp) env) 
                                 (make-thunk (strm exp) env))))
   )
 
@@ -536,6 +534,9 @@
 
 ;;; delayed tagged parameters -- (delayed <var>)
 
+(define (delayed? exp)
+  (tagged-list? exp 'delayed))
+
 (define (make-thunk exp env)
   (list 'thunk exp env))
 
@@ -548,10 +549,28 @@
 (define (thunk? exp)
   (tagged-list? exp 'thunk))
 
-(define (delayed? exp)
-  (tagged-list? exp 'delayed))
+;; reference tagged parameters
 
-;;; Scan the whole params for argument passing tags. If a param is tagged,
+(define (reference? exp)
+  (tagged-list? exp 'reference))  
+
+(define (to-be-ref exp env)
+  (list 'to-be-ref exp env))
+
+(define (ref-exp obj) (cadr obj))
+(define (ref-env obj) (caddr obj))
+
+(define (ref-it obj)
+  (cond ((and (symbol? (ref-exp obj))
+              (defined? (ref-exp obj) (ref-env obj)))
+         (lookup-variable-value (ref-exp obj) (ref-env obj)))
+        (else
+         (s450error (ref-exp obj) " must be predefined"))))
+
+(define (to-be-ref? exp)
+  (tagged-list? exp 'to-be-ref))         
+
+;;; Scan the whole params for tagged params. If a param is tagged,
 ;;; removed the tag and update the corresponding argument's value
 ;;; depending on what tag the param is.
 ;;; ==>(define l1 '( x (delayed y) z (delayed v)))
@@ -566,8 +585,12 @@
       (cond ((null? params) '())
             ((list? (car params))
              (cond ((delayed? (car params))
-                    (set-car! params (cadar params))
+                    (set-car! params (cadar params)) ;untag it
                     (set-car! args (make-thunk (car args) env))
+                    (scan-params (cdr params) (cdr args) env))
+                   ((reference? (car params))
+                    (set-car! params (cadar params)) ;untag it
+                    (set-car! args (to-be-ref (car args) env))
                     (scan-params (cdr params) (cdr args) env))))
             (else (scan-params (cdr params) (cdr args) env))))
 
@@ -628,6 +651,8 @@
             ((eq? var (car vars))
              (cond ((thunk? (car vals)) ;force promise
                     (eval-thunk (car vals)))
+                   ((to-be-ref? (car vals))
+                    (ref-it (car vals)))
                    (else
                     (car vals))))
             (else (scan (cdr vars) (cdr vals)))))
@@ -727,6 +752,7 @@
   (install-primitive-procedure 'cons cons)
   (install-primitive-procedure 'null? null?)
   (install-primitive-procedure 'list? list?)
+  (install-primitive-procedure 'map map)
   (install-primitive-procedure 'length length)
   (install-primitive-procedure '+ +)
   (install-primitive-procedure '- -)
@@ -909,5 +935,4 @@ exits it.")
             (cons (car lst2) (replace1 item with (cdr lst) (cdr lst2)))))))
 (define (f1 x y z) (if (= x 5) x y))
 
-;;;;let
-(define t '(let ((a 1) (b 2)) (+ a b) (display a)))
+
