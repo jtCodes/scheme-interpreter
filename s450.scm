@@ -46,10 +46,14 @@
              (pair? exp)) ;to catch ==> <special-form>; ie: ==> if
         (action exp env)
         (cond ((self-evaluating? exp) exp)
-              ((variable? exp) (lookup-variable-value exp env))
+              ((variable? exp)
+               (cond ((to-be-ref? (lookup-variable-value exp env))
+                      (ref-it (lookup-variable-value exp env)))
+                     (else
+                      (lookup-variable-value exp env))))
               ((application? exp)
                (xapply (xeval (operator exp) env)
-                       (operands exp)
+                       (operands exp) ;changed
                        env))
               (else
                (error "Unknown expression type -- XEVAL " exp))))))
@@ -122,6 +126,10 @@
 ;;; These functions, called from install-special-form-packages, do
 ;;; the work of evaluating some of the special forms:
 
+;(define (f x (reference y)) (set! y 1))
+;(define x 10)
+;(f 1 x)
+
 (define (eval-if exp env)
   (if (true? (xeval (if-predicate exp) env))
       (xeval (if-consequent exp) env)
@@ -133,11 +141,19 @@
               (eval-sequence (rest-exps exps) env))))
 
 (define (eval-assignment exp env)
-  (let ((name (assignment-variable exp)))
-    (set-variable-value! name
-			 (xeval (assignment-value exp) env)
-			 env)
-  name))    ;; A & S return 'ok
+  (let ((name (assignment-variable exp))
+        (to-be-ref (lookup-variable-value name env)))
+    (cond ((to-be-ref? to-be-ref) ;check if ref container
+           (set-variable-value!
+            (ref-exp to-be-ref)
+            (xeval (assignment-value exp) env)
+            (ref-env to-be-ref)))
+          (else
+           (set-variable-value!
+            name
+            (xeval (assignment-value exp) env)
+            env)))
+    name))    ;; A & S return 'ok
 
 (define (eval-definition exp env)
   (let ((name (definition-variable exp)))  
@@ -651,8 +667,6 @@
             ((eq? var (car vars))
              (cond ((thunk? (car vals)) ;force promise
                     (eval-thunk (car vals)))
-                   ((to-be-ref? (car vals))
-                    (ref-it (car vals)))
                    (else
                     (car vals))))
             (else (scan (cdr vars) (cdr vals)))))
