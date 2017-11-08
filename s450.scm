@@ -142,12 +142,18 @@
 
 (define (eval-assignment exp env)
   (let ((name (assignment-variable exp))
-        (to-be-ref (lookup-variable-value name env)))
+        (to-be-ref (lookup-variable-value (assignment-variable exp) env)))
     (cond ((to-be-ref? to-be-ref) ;check if ref container
-           (set-variable-value!
-            (ref-exp to-be-ref)
-            (xeval (assignment-value exp) env)
-            (ref-env to-be-ref)))
+           (cond  ((to-be-ref? (lookup-variable-value
+                        (ref-exp to-be-ref) (ref-env to-be-ref)))
+                   (set-variable-value! (ref-exp to-be-ref)
+                                        (xeval (assignment-value exp) env)
+                                        (ref-env to-be-ref)))
+                  (else
+                   (set-variable-value!
+                    (ref-exp to-be-ref)
+                    (xeval (assignment-value exp) env)
+                    (ref-env to-be-ref)))))
           (else
            (set-variable-value!
             name
@@ -652,9 +658,9 @@
          (cons (make-frame vars vals) base-env))
       (else
        (cond ((< (length vars) (length vals))
-              (error "Too many arguments supplied " vars vals))
+              (s450error "Too many arguments supplied " vars vals))
              (else
-              (error "Too few arguments supplied " vars vals))))))
+              (s450error "Too few arguments supplied " vars vals))))))
 
 
 ;;; Looking up a variable in an environment
@@ -690,12 +696,21 @@
              (set-car! vals val))
             (else (scan (cdr vars) (cdr vals)))))
     (if (eq? env the-empty-environment)
-        (error "Unbound variable -- SET! " var)
+        (s450error "Unbound variable -- SET! " var)
         (let ((frame (first-frame env)))
           (scan (frame-variables frame)
                 (frame-values frame)))))
   (cond ((lookup-action var)     ;check if var is special-form
          (s450error "Var cannot be special-form " var))
+        ((to-be-ref? (lookup-variable-value var env)) ;check if var is ref
+          (set-variable-value! (ref-exp (lookup-variable-value var env))
+                               val
+                               (ref-env (lookup-variable-value var env)))
+          (display (ref-exp (lookup-variable-value var env)))
+          (newline)
+          (display val)
+          (newline)
+          (newline))
         (else
          (env-loop env))))
 
