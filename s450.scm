@@ -144,16 +144,10 @@
   (let ((name (assignment-variable exp))
         (to-be-ref (lookup-variable-value (assignment-variable exp) env)))
     (cond ((to-be-ref? to-be-ref) ;check if ref container
-           (cond  ((to-be-ref? (lookup-variable-value
-                        (ref-exp to-be-ref) (ref-env to-be-ref)))
-                   (set-variable-value! (ref-exp to-be-ref)
-                                        (xeval (assignment-value exp) env)
-                                        (ref-env to-be-ref)))
-                  (else
-                   (set-variable-value!
-                    (ref-exp to-be-ref)
-                    (xeval (assignment-value exp) env)
-                    (ref-env to-be-ref)))))
+           (set-variable-value!
+            (ref-exp to-be-ref)
+            (xeval (assignment-value exp) env)
+            (ref-env to-be-ref)))
           (else
            (set-variable-value!
             name
