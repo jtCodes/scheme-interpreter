@@ -40,6 +40,8 @@
 ;;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+;;; to-do catch dynamic tagged param, if it's dynamic, use dynamic env
+
 (define (xeval exp env)
   (let ((action (lookup-action (type-of exp))))
     (if (and (lookup-action (type-of exp))
@@ -51,6 +53,7 @@
                       (ref-it (lookup-variable-value exp env)))
                      (else
                       (lookup-variable-value exp env))))
+              ((dynamic? exp) "dyn")
               ((application? exp)
                (xapply (xeval (operator exp) env)
                        (operands exp) ;changed
@@ -135,8 +138,12 @@
       (xeval (if-consequent exp) env)
       (xeval (if-alternative exp) env)))
 
+;;; TO-DO save the last value, pop dynamic value, return that saved value
 (define (eval-sequence exps env)
-  (cond ((last-exp? exps) (xeval (first-exp exps) env))
+  (cond ((last-exp? exps)
+         (let ((last-value (xeval (first-exp exps) env)))
+           (set! the-dynamic-environment (cdr the-dynamic-environment))
+           last-value))
         (else (xeval (first-exp exps) env)
               (eval-sequence (rest-exps exps) env))))
 
@@ -144,10 +151,16 @@
   (let ((name (assignment-variable exp))
         (to-be-ref (lookup-variable-value (assignment-variable exp) env)))
     (cond ((to-be-ref? to-be-ref) ;check if ref container
-           (set-variable-value!
-            (ref-exp to-be-ref)
-            (xeval (assignment-value exp) env)
-            (ref-env to-be-ref)))
+           (cond  ((to-be-ref? (lookup-variable-value
+                        (ref-exp to-be-ref) (ref-env to-be-ref)))
+                   (set-variable-value! (ref-exp to-be-ref)
+                                        (xeval (assignment-value exp) env)
+                                        (ref-env to-be-ref)))
+                  (else
+                   (set-variable-value!
+                    (ref-exp to-be-ref)
+                    (xeval (assignment-value exp) env)
+                    (ref-env to-be-ref)))))
           (else
            (set-variable-value!
             name
@@ -187,7 +200,7 @@
 (define (proc-body l)
     (cddr l))
 
-(define (collect-vars ve)
+(define (collect-vars ve) ;ve = variable-exp
   (cond ((null? ve) '())
         (else
          (cons (caar ve) (collect-vars (cdr ve))))))
@@ -584,7 +597,20 @@
          (s450error (ref-exp obj) " must be predefined"))))
 
 (define (to-be-ref? exp)
-  (tagged-list? exp 'to-be-ref))         
+  (tagged-list? exp 'to-be-ref))
+
+;;; dynamic tagged
+
+(define (dynamic? exp)
+  (tagged-list? exp 'dynamic))
+
+;;; Takes in a parameter as input and check if the parameter is tagged
+;;; ==>(tagged-param? '(delayed x))
+;;; #t
+
+(define (tagged-param? param)
+  (or (delayed? param)
+      (reference? param)))
 
 ;;; Scan the whole params for tagged params. If a param is tagged,
 ;;; removed the tag and update the corresponding argument's value
@@ -607,6 +633,17 @@
                    ((reference? (car params))
                     (set-car! params (cadar params)) ;untag it
                     (set-car! args (to-be-ref (car args) env))
+                    (scan-params (cdr params) (cdr args) env))
+                   ((dynamic? (car params))
+                    (display params)
+                    (display " ")
+                    (display args)
+                    (newline)
+                    (set-car! params (cadar params)) ;untag it
+                    (set-car! args        ;get value from dynamic
+                              (lookup-variable-value
+                               (car args)
+                               the-dynamic-environment))
                     (scan-params (cdr params) (cdr args) env))))
             (else (scan-params (cdr params) (cdr args) env))))
 
@@ -622,6 +659,8 @@
 ;;;	 Representing environments
 ;;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(define the-dynamic-environment '()) 
 
 ;;; An environment is a list of frames.
 
@@ -648,13 +687,18 @@
 ;;; Extending an environment
 
 (define (xtend-environment vars vals base-env)
+  (display "called")
+  (newline)
   (cond ((= (length vars) (length vals))
-         (cons (make-frame vars vals) base-env))
-      (else
-       (cond ((< (length vars) (length vals))
-              (s450error "Too many arguments supplied " vars vals))
-             (else
-              (s450error "Too few arguments supplied " vars vals))))))
+         (let ((new-frame (make-frame vars vals)))
+           (set! the-dynamic-environment
+                 (cons new-frame the-dynamic-environment))
+           (cons new-frame base-env)))
+         (else
+          (cond ((< (length vars) (length vals))
+                 (s450error "Too many arguments supplied " vars vals))
+                (else
+                 (s450error "Too few arguments supplied " vars vals))))))
 
 
 ;;; Looking up a variable in an environment
@@ -696,15 +740,10 @@
                 (frame-values frame)))))
   (cond ((lookup-action var)     ;check if var is special-form
          (s450error "Var cannot be special-form " var))
-        ((to-be-ref? (lookup-variable-value var env)) ;check if var is ref
+        ((to-be-ref? (lookup-variable-value var env)) ;check if var is refZ
           (set-variable-value! (ref-exp (lookup-variable-value var env))
                                val
-                               (ref-env (lookup-variable-value var env)))
-          (display (ref-exp (lookup-variable-value var env)))
-          (newline)
-          (display val)
-          (newline)
-          (newline))
+                               (ref-env (lookup-variable-value var env))))
         (else
          (env-loop env))))
 
@@ -957,5 +996,4 @@ exits it.")
             (cons (car lst) (replace1 item with (cdr lst) (cdr lst2)))
             (cons (car lst2) (replace1 item with (cdr lst) (cdr lst2)))))))
 (define (f1 x y z) (if (= x 5) x y))
-
 
