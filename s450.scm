@@ -40,12 +40,10 @@
 ;;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-;;; to-do catch dynamic tagged param, if it's dynamic, use dynamic env
-
 (define (xeval exp env)
   (let ((action (lookup-action (type-of exp))))
     (if (and (lookup-action (type-of exp))
-             (pair? exp)) ;to catch ==> <special-form>; ie: ==> if
+             (pair? exp)) ;don't lookup ==> <special-form>; i.e: ==> if
         (action exp env)
         (cond ((self-evaluating? exp) exp)
               ((variable? exp)
@@ -53,10 +51,9 @@
                       (ref-it (lookup-variable-value exp env)))
                      (else
                       (lookup-variable-value exp env))))
-              ((dynamic? exp) "dyn")
               ((application? exp)
                (xapply (xeval (operator exp) env)
-                       (operands exp) ;changed
+                       (operands exp) 
                        env))
               (else
                (error "Unknown expression type -- XEVAL " exp))))))
@@ -140,6 +137,9 @@
 
 ;;; TO-DO save the last value, pop dynamic value, return that saved value
 (define (eval-sequence exps env)
+  (display "seq ")
+  (display exps)
+  (newline)
   (cond ((last-exp? exps)
          (let ((last-value (xeval (first-exp exps) env)))
            (set! the-dynamic-environment (cdr the-dynamic-environment))
@@ -635,7 +635,7 @@
                     (newline)
                     (set-car! params (cadar params)) ;untag it
                     (set-car! args        ;get value from dynamic
-                              (lookup-variable-value
+                              (xeval
                                (car args)
                                the-dynamic-environment))
                     (scan-params (cdr params) (cdr args) env))))
@@ -879,20 +879,20 @@
 ;;; Stores the state that (s450) is not called yet
 ;;; Calling (end <anything>) will effectly exit s450.
 
-(define end '())
+(define get-out '())
 
 ;;; Assign the state that (s450) is not called yet to variable end.
 
 (begin
   (call-with-current-continuation
    (lambda (here)
-     (set! end here)))
+     (set! get-out here)))
   ;calling (end <anything>) gets you back here
   )  
 
 (define (exit)
   (display "Exiting s450...")
-  (end '()))
+  (get-out '()))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;
