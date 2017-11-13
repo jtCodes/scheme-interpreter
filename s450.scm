@@ -621,7 +621,7 @@
       (cond ((< (length params) (length args))
              (s450error "Too many arguments supplied " params args))
             ((> (length params) (length args))
-                 (s450error "Too few arguments supplied " params args))
+             (s450error "Too few arguments supplied " params args))
             ((null? params) '())
             ((list? (car params))
              (cond ((delayed? (car params))
