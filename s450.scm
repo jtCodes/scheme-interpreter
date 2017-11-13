@@ -160,14 +160,14 @@
             name
             (xeval (assignment-value exp) env)
             env)))
-    name))    ;; A & S return 'ok
+    name))    
 
 (define (eval-definition exp env)
   (let ((name (definition-variable exp)))  
     (define-variable! name
       (xeval (definition-value exp) env)
       env)
-  name))     ;; A & S return 'ok
+  name))    
 
 ;;; Stream special-form
 (define (elmt exp)
@@ -618,7 +618,11 @@
 ;;; ==>(1 (thunk 2 env) 3 (thunk 4 env))
 
 (define (scan-params params args env)
-      (cond ((null? params) '())
+      (cond ((< (length params) (length args))
+             (s450error "Too many arguments supplied " params args))
+            ((> (length params) (length args))
+                 (s450error "Too few arguments supplied " params args))
+            ((null? params) '())
             ((list? (car params))
              (cond ((delayed? (car params))
                     (set-car! params (cadar params)) ;untag it
@@ -734,7 +738,7 @@
                 (frame-values frame)))))
   (cond ((lookup-action var)     ;check if var is special-form
          (s450error "Var cannot be special-form " var))
-        ((to-be-ref? (lookup-variable-value var env)) ;check if var is refZ
+        ((to-be-ref? (lookup-variable-value var env)) ;check if var is ref
           (set-variable-value! (ref-exp (lookup-variable-value var env))
                                val
                                (ref-env (lookup-variable-value var env))))
