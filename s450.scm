@@ -126,20 +126,12 @@
 ;;; These functions, called from install-special-form-packages, do
 ;;; the work of evaluating some of the special forms:
 
-;(define (f x (reference y)) (set! y 1))
-;(define x 10)
-;(f 1 x)
-
 (define (eval-if exp env)
   (if (true? (xeval (if-predicate exp) env))
       (xeval (if-consequent exp) env)
       (xeval (if-alternative exp) env)))
 
-;;; TO-DO save the last value, pop dynamic value, return that saved value
 (define (eval-sequence exps env)
-  (display "seq ")
-  (display exps)
-  (newline)
   (cond ((last-exp? exps)
          (let ((last-value (xeval (first-exp exps) env)))
            (set! the-dynamic-environment (cdr the-dynamic-environment))
@@ -633,10 +625,6 @@
                     (set-car! args (to-be-ref (car args) env))
                     (scan-params (cdr params) (cdr args) env))
                    ((dynamic? (car params))
-                    (display params)
-                    (display " ")
-                    (display args)
-                    (newline)
                     (set-car! params (cadar params)) ;untag it
                     (set-car! args        ;get value from dynamic
                               (xeval
@@ -685,8 +673,6 @@
 ;;; Extending an environment
 
 (define (xtend-environment vars vals base-env)
-  (display "called")
-  (newline)
   (cond ((= (length vars) (length vals))
          (let ((new-frame (make-frame vars vals)))
            (set! the-dynamic-environment
@@ -904,7 +890,7 @@
 ;;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-;;; No te that (read) returns an internal representation of the next
+;;; No  te that (read) returns an internal representation of the next
 ;;; Scheme expression from the input stream.  It does NOT evaluate
 ;;; what is typed in -- it just parses it and returns an internal
 ;;; representation.  It is the job of the scheme evaluator to perform
@@ -971,27 +957,5 @@ exits it.")
 ;(define (e? x) (cond ((= x 2) "#t") (else "f")))
 ;(define (f x (delayed y) z) (if (= x 5) x y))
 ;(f 1 (/ 0 3) 3)
-(define l1 '(1 2 3 4))
-(define l2 '(a 2 c d))
-(define q 5)
-(define w 0)
 ;(f 5 (/ 3 0) 6)
 ;(define s (cons-stream the-empty-stream the-empty-stream))
-(define (replace item with lst)
-    (cond ((null? lst) '())
-          ((equal? item (car lst))
-           (cons with (replace item with (cdr lst))))
-          (else
-           (cons (car lst) (replace item with (cdr lst))))))
-(define (replace1 item with lst lst2)
-    (cond ((null? lst) '())
-          ((equal? item (car lst))
-           (cons
-            (cons with (replace1 item with (cdr lst) (cdr lst2)))
-            (cons with (replace1 item with (cdr lst) (cdr lst2)))))
-          (else
-           (cons
-            (cons (car lst) (replace1 item with (cdr lst) (cdr lst2)))
-            (cons (car lst2) (replace1 item with (cdr lst) (cdr lst2)))))))
-(define (f1 x y z) (if (= x 5) x y))
-
