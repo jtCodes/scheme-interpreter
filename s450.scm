@@ -134,7 +134,9 @@
 (define (eval-sequence exps env)
   (cond ((last-exp? exps)
          (let ((last-value (xeval (first-exp exps) env)))
-           (set! the-dynamic-environment (cdr the-dynamic-environment))
+           (cond ((not (null? (cdr the-dynamic-environment)))
+                  (set! the-dynamic-environment
+                        (cdr the-dynamic-environment))))
            last-value))
         (else (xeval (first-exp exps) env)
               (eval-sequence (rest-exps exps) env))))
@@ -627,7 +629,7 @@
                    ((dynamic? (car params))
                     (set-car! params (cadar params)) ;untag it
                     (set-car! args        ;get value from dynamic
-                              (xeval
+                              (xeval      ;and set (car args) to that val
                                (car args)
                                the-dynamic-environment))
                     (scan-params (cdr params) (cdr args) env))))
