@@ -890,7 +890,7 @@
 ;;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-;;; No  te that (read) returns an internal representation of the next
+;;; Note that (read) returns an internal representation of the next
 ;;; Scheme expression from the input stream.  It does NOT evaluate
 ;;; what is typed in -- it just parses it and returns an internal
 ;;; representation.  It is the job of the scheme evaluator to perform
