@@ -1,0 +1,218 @@
+--------------------------------------------------------------------------
+                             Modifying s450
+--------------------------------------------------------------------------
+
+# New features
+  - Now supports:
+    - call-by-need
+    - call-by-reference
+    - evaluating arguments in the dynamic environment
+    - let special-form
+    - streams
+    - exiting s450 by (exit) or ctrl-d
+    - error handling
+
+# Changes in detail
+## Modified from hw6 s450
+- xeval
+  - If an exp is a variable, xeval now checks to see if that variable is
+    tagged to-be-ref and look up that variable in the env stored in
+    to-be-ref if it is, else just look up the variable value in the
+    current env.
+  - (operands exp) is passed to xapply if an exp is an application
+    instead of (list-of-values (operands exp) env)
+    - The operands are not ready for (list-of-values) yet:
+      - Operands corresponding to delay tagged parameters should not be
+      	evaluated unless needed.
+      - Operands corresponding to reference tagged parameters needs to
+      	be referenced
+      - It's not known which value corresponds to a tagged parameter yet
+- xapply
+  - Now takes in a third argument env
+    - env is needed for function list-of-values
+  - procdedure-parameters gets copied into a new list called new-params
+    because scan-params scans the parameters for tagged parameters and if
+    the parameter is tagged delayed or reference, that parameter gets
+    untagged through set-car!. We don't want set-car! to modify the
+    parameters of the original function. Without copying the parameters into
+    a new list, (define (f x (reference y))) would be like (define (f x y))
+    after one scan-params.
+  - new-params and (list-of-values arguments env) is now passed on to
+    xtend-environment instead of (procedure-parameters procedure) and
+    arguments 
+- list-of-values
+  - Now checks to see if the operand is an object corresponding to a delay
+    tagged or reference tagged parameter and if it is, ignore that object
+    and don't evaluate it.
+- eval-sequence
+  - Changed to account for dynamic tagged parameters
+    - Arriving at last-exp? means the function is ready to terminate,
+      so popping the first frame off the-dynamic-environment restores it
+      to its previous state before the function is called.
+    - Return the last-value as normal after restoring the-dynamic-environment
+- eval-assignment
+  - Changed to account for reference tagged parameters
+    - Now checks to see exp is in the form (to-be-ref <variable> env) and if
+      it is, call set-variable-value! with the variable and env from within
+      that to-be-ref object. Otherwise set-variable-value! with the usual
+      values.
+- install-special-form-packages
+  - Now install let and cons-stream
+- xtend-environment
+  - Changed to account for dynamic tagged parameters
+    - Now push the frame to the-dynamic-environment before adding the frame
+      to base-env
+- lookup-variable-value
+  - Changed to account for delayed tagged parameters
+    - The value corresponding to a thunk is just (thunk <exp> env) and that's
+      not what we want. So if the var is a thunk, the <exp> of that thunk
+      is evaluated within the thunk's env.
+- set-variable-value!
+  - Changed to account for reference tagged parameters
+    - Now checks for var like (to-be-ref (to-be-ref <var> env))
+- s450
+  - Changed to handle s450error and exit commands
+
+## Added
+- stream special-form
+- let special-form
+  - Simple list manipulation to turn let into lambda
+- New section: Handling various methods of argument passing
+  - delayed tagged parameters handling functions
+  - reference tagged parameters handling functions
+    - ref-it is only used for when the user just want the value of the
+      reference variable returned
+  - dynamic tagged parameters handling functions
+    - Not much function is needed because dynamic tagged parameters mainly
+      involves updating the-dynamic-environment
+  - New function: scan-params
+    - Scans the parameters for tagged parameters and if a parameter is tagged,
+      untagged it and modify its args accordingly
+- Ability to install primitive objects
+  - Almost the same as install primitive procs
+- New section: Error and exit handling
+  - Just contains variables that store the relevant states and functions that
+    get the s450 to those states
+
+# Design choices
+## the-dynamic-environment must be defined before the-global-environment
+the-dynamic-environment must be defined before the-global-environment because
+of setup-environment. setup-environment calls xtend-environment and
+xtend-environment make use of the-dynamic-environment.
+
+## Handling various methods of argument passing section placement
+Handling various methods of argument passing section is placed right after
+section Truth values and procedure objects because I am ordering the section
+according to when xeval needs them.
+
+## No need to modify define-variable!
+At first, I thought I should modify define-variable! to account for reference
+tagged parameters but during the modifying process, I realize that it might
+be pointless to do so. The modification I ended up doing to define-variable!
+to handle (to-be-ref <var> env) is just calling set-variable-value! on that
+to-be-ref object, and it turns out to be the exact same few lines of code I
+already had in set-variable-value!. Which means doing
+(define (to-be-ref <var> env)) is the same as doing
+(set! (to-be-ref <var> env)). So why not just call set! in the first place?
+
+Furthermore, if the users for some reason wants to redefine the reference
+variable into new value and use that new redefined variable within the
+same scope, he would have no issue with unmodified define-variable!:
+
+s450==> (define x 1)
+s450==> (define (a (reference z)) (define z 6) z)
+s450==> (a x)
+s450==> 6
+
+It's just that x stays untouched:
+
+s450==> x
+s450==> 1
+
+While:
+
+s450==> (define x 1)
+s450==> (define (a (reference z)) (set! z 6) z)
+s450==> (a x)
+s450==> 6
+
+x is changed:
+
+s450==> x
+s450==> 6
+
+Both define and set! could have their own use and so they should remain
+different.
+
+# TO-DOs
+- Better names for functions variables
+  - Rename all functions related to let special-form so to names that
+    is more specific to let
+    - var-exp could be something like let-var-exp
+  - Not liking the function name to-be-ref
+- Clean up scan-params
+  - Way too many repeated codes
+- Get pi.scm to work on s450
+
+-----------------------------------------------------------------------------
+			Testing modified s450
+-----------------------------------------------------------------------------
+
+# Testing in underlying scheme 
+What I found really helpful during implementation is to test out functions
+in the underlying scheme to get a feel of it runs. For example, I wasn't
+entirely sure how a thunk works. So I did something like this:
+
+==>(define test (list 'thunk 'exp 'env))
+
+Playing around the that list I was able to figure how to create thunk-exp
+and thunk-env. Next a more realistic example:
+
+==>(define test (list 'thunk '(/ 6 2) the-global-environment))
+
+With the exp env I can call xeval:
+
+==>(xeval (thunk-exp test) (thunk-env test))
+==>3
+
+And this is the strategy I use for whenever I am starting something new.
+
+# Testing the finished product
+## delayed
+- Should not be evaluated when not need:
+  s450==>(define (f x (delayed y)) x)
+  s450==>(f 1 (/ 3 0))
+  s450==>1
+- Evaluated when needed:
+  s450==>(define (f x (delayed y)) y)
+  s450==>(f 1 (/ 3 0))
+  s450==>Error: division by 0
+
+## stream
+- Created the infinite stream of integers and function display-n to display
+  the n elements of a stream. display-n make use of stream-car and stream-cdr
+  - Tried to display integers to 1000 and no problem
+- Tested stream-null? and the-empty-stream with the infinite stream of primes
+  - Tried to display first 10 primes fine
+
+## dynamic
+- Ran the sample test from hw7.html and result matches
+- dynamic should refer to the most recently created frame in
+  the-dynamic-environment
+
+## reference
+- Ran the sample test from hw7.html and results match
+- reference tagged parameters should refer to the value of the passed in
+  variable
+
+## Error and exiting
+- Broke s450 and it restarted
+  s450==> (ds )
+  ERROR: Unbound variable ds
+- (exit) bring me back to underlying scheme
+  s450==> (exit)
+  Exiting s450...()
+  ==> 
+ 
+
+
