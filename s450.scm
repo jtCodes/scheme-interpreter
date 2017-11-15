@@ -648,8 +648,6 @@
 ;;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(define the-dynamic-environment '()) 
-
 ;;; An environment is a list of frames.
 
 (define (enclosing-environment env) (cdr env))
@@ -685,7 +683,6 @@
                  (s450error "Too many arguments supplied " vars vals))
                 (else
                  (s450error "Too few arguments supplied " vars vals))))))
-
 
 ;;; Looking up a variable in an environment
 
@@ -854,8 +851,8 @@
 ;;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-;;; Calling (restart) will run any code after call/cc.
-;;; In this case, (restart) effectively restarts s450.
+;;; Stores the state where s450 is just called.
+;;; (restart) effectively restarts s450.
 
 (define restart '())
 
@@ -932,11 +929,12 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;
-;;;	 Here we go:  define the global environment and invite the
+;;;	 Here we go:  define the environments and invite the
 ;;;        user to run the evaluator.
 ;;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+(define the-dynamic-environment '()) 
 (define the-global-environment (setup-environment))
 
 (install-special-form-packages)
