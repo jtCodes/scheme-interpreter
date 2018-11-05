@@ -3,7 +3,7 @@ INTERPRETATION OF COMPUTER PROGRAMS (2nd edition)
                                                                             
 Modified by kwn, 3/4/97                                                     
 Modified and commented by Carl Offner, 10/21/98 -- 10/12/04                 
-Modified and commented by Jiaan Tan, 10/24/17                               
+Modified and commented by JTan, 10/24/17                               
 
 This code is the code for the metacircular evaluator as it appears          
 in the textbook in sections 4.1.1-4.1.4, with the following                 
